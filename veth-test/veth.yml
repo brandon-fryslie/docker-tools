@@ -1,0 +1,22 @@
+version: '2'
+
+networks:
+  vethdeth:
+    driver: 'overlay'
+
+services:
+  ubuntu1:
+    image: busybox
+    command: sh -c 'echo `hostname`; sleep 5s'
+    environment:
+      - "constraint:dhost==${DHOST_1}"
+    networks:
+      - vethdeth
+
+  ubuntu2:
+    image: busybox
+    command: sh -c 'echo `hostname`; sleep 5s'
+    environment:
+      - "constraint:dhost==${DHOST_2}"
+    networks:
+      - vethdeth
