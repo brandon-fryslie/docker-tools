@@ -42,21 +42,9 @@ def random_string
   ('a'..'z').to_a.shuffle[0,8].join
 end
 
-def test_veth(dhost_n_1, dhost_n_2)
-  dhost_1 = number_to_host dhost_n_1
-  dhost_2 = number_to_host dhost_n_2
-
+def examine_compose_output(dhost_1, dhost_2, compose_output, exit_status)
   puts "#{dhost_1} #{dhost_2}".cyan
-
-  ENV['DOCKER_HOST'] = 'tcp://bld-swarm-01.f4tech.com:2375'
-  ENV['DHOST_1'] = dhost_1
-  ENV['DHOST_2'] = dhost_2
-  compose_args = "-p #{COMPOSE_PREFIX}_#{random_string} -f veth.yml"
-
-  cmd = "docker-compose #{compose_args} up 2>&1"
-  puts "Running docker command: #{"DHOST_1=#{dhost_1} DHOST_2=#{dhost_2} #{cmd}".yellow}"
-  compose_out = `#{cmd}`
-  if compose_out.match('could not add veth')
+  if compose_output.match('could not add veth')
     image_match_cmd = "docker ps -a | grep #{COMPOSE_PREFIX} | grep '#{dhost_1}\\|#{dhost_2}' | grep 'Created' 2>&1"
     image_line = `#{image_match_cmd}`
     puts image_line
@@ -83,22 +71,30 @@ def test_veth(dhost_n_1, dhost_n_2)
       puts "Veth error on #{match[0]}".red if match[0]
       puts "Veth error on #{match[1]}".red if match[1]
     end
-  elsif compose_out.match(/network \w+ not found/)
+  elsif compose_output.match(/network \w+ not found/)
     puts "Error: network not found".red
-  elsif compose_out.match(/getsockopt: no route to host/)
+  elsif compose_output.match(/getsockopt: no route to host/)
     puts "getsockopt: no route to host".red
-  elsif compose_out.match(/ValueError: No JSON object could be decoded/)
+  elsif compose_output.match(/ValueError: No JSON object could be decoded/)
     puts "ValueError: No JSON object could be decoded".red
-  elsif compose_out.match(/Unable to find a node that satisfies the following conditions/)
-    puts "Unable to find a node that satisfies the following conditions for host #{compose_out.match(/\[([^\]+])\]/)[1]}".red
-  elsif $? != 0
+  elsif compose_output.match(/Unable to find a node that satisfies the following conditions/)
+    match = compose_output.match(/\[bld-([^\]]+)\]/)
+    unless match
+      puts "Parsing error in node satisfying conditions!".red
+      puts compose_output
+      exit 1
+    end
+    puts "Unable to find a node that satisfies the following conditions for host #{}".red
+  elsif exit_status != 0
     puts "Got some error.  Compose output:"
-    puts compose_out
+    puts compose_output
   else
     puts "No veth error".green
   end
+end
 
-  `docker-compose #{compose_args} down 2>&1`
+def test_veth(dhost_n_1, dhost_n_2)
+
 end
 
 def get_host_range
@@ -126,9 +122,26 @@ if $options[:clean]
 end
 
 get_host_range.map do |i|
-  test_veth i, i+1
-end
+  dhost_1 = number_to_host i
+  dhost_2 = number_to_host i+1
 
+  ENV['DOCKER_HOST'] = 'tcp://bld-swarm-01.f4tech.com:2375'
+  ENV['DHOST_1'] = dhost_1
+  ENV['DHOST_2'] = dhost_2
+  compose_args = "-p #{COMPOSE_PREFIX}_#{random_string} -f veth.yml"
+
+  cmd = "docker-compose #{compose_args} up 2>&1"
+  puts "Running docker command: #{"DHOST_1=#{dhost_1} DHOST_2=#{dhost_2} #{cmd}".yellow}"
+
+  Thread.new do
+    compose_output = `#{cmd}`
+    [dhost_1, dhost_2, compose_args, compose_output, $?]
+  end
+end.map { |t| t.value }.map do |(dhost_1, dhost_2, compose_args, compose_output, exit_status)|
+  examine_compose_output dhost_1, dhost_2, compose_output, exit_status
+
+  `docker-compose #{compose_args} down 2>&1`
+end
 puts "Checked all hosts".green
 
 cleanup
