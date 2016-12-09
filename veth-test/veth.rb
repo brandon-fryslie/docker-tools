@@ -51,7 +51,7 @@ def examine_compose_output(dhost_1, dhost_2, compose_output, exit_status)
     match = image_line.scan(/bld-docker-\d\d/)
     if match.nil?
       puts "got no match for line: #{image_line}".red
-      exit
+      return
     end
 
     if match[0] != dhost_1 || match[1] != dhost_2
@@ -60,12 +60,12 @@ def examine_compose_output(dhost_1, dhost_2, compose_output, exit_status)
         puts "Didn't match any images from:".red
         puts `docker ps -a | grep #{COMPOSE_PREFIX}`
         puts "with cmd: #{"#{image_match_cmd}".yellow}".red
-        exit 1
+        return
       else
         puts "Didn't match any images from:".red
         puts image_line
         puts "with cmd: #{"#{image_match_cmd}".yellow}".red
-        exit 1
+        return
       end
     else
       puts "Veth error on #{match[0]}".red if match[0]
@@ -78,15 +78,15 @@ def examine_compose_output(dhost_1, dhost_2, compose_output, exit_status)
   elsif compose_output.match(/ValueError: No JSON object could be decoded/)
     puts "ValueError: No JSON object could be decoded".red
   elsif compose_output.match(/Unable to find a node that satisfies the following conditions/)
-    match = compose_output.match(/\[bld-([^\]]+)\]/)
+    match = compose_output.match(/\[([\w-]+)\]/)
     unless match
       puts "Parsing error in node satisfying conditions!".red
       puts compose_output
-      exit 1
+      return
     end
-    puts "Unable to find a node that satisfies the following conditions for host #{}".red
+    puts "Unable to find a node that satisfies the following conditions for host #{match[1]}".red
   elsif exit_status != 0
-    puts "Got some error.  Compose output:"
+    puts "Got some error.  Compose output:".red
     puts compose_output
   else
     puts "No veth error".green
