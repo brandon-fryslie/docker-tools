@@ -43,8 +43,9 @@ def test_veth(dhost_n_1, dhost_n_2)
   ENV['DOCKER_HOST'] = 'tcp://bld-swarm-01:2375'
   ENV['DHOST_1'] = dhost_1
   ENV['DHOST_2'] = dhost_2
+  compose_args = "-p #{COMPOSE_PREFIX}_#{dhost_n_1} -f veth.yml"
 
-  cmd = "docker-compose -p #{COMPOSE_PREFIX}_#{dhost_n_1} -f veth.yml up --force-recreate 2>&1"
+  cmd = "docker-compose #{compose_args} up --force-recreate 2>&1"
   puts "Running docker command: #{"DHOST_1=#{dhost_1} DHOST_2=#{dhost_2} #{cmd}".yellow}"
   compose_out = `#{cmd}`
   if compose_out.match('could not add veth')
@@ -66,17 +67,11 @@ def test_veth(dhost_n_1, dhost_n_2)
   elsif $? != 0
     puts "Got some error.  Compose output:"
     puts compose_out
-
   else
-
-    # we gotta check for running state of those containers
-    # `docker ps | grep #{COMPOSE_PREFIX} | Running`
-
     puts "No veth error".green
-
   end
 
-  `docker-compose -p #{COMPOSE_PREFIX} down 2>&1`
+  `docker-compose #{compose_args} down 2>&1`
 end
 
 def get_host_range
