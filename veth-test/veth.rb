@@ -48,12 +48,12 @@ def test_veth(dhost_n_1, dhost_n_2)
 
   puts "#{dhost_1} #{dhost_2}".cyan
 
-  ENV['DOCKER_HOST'] = 'tcp://bld-swarm-01:2375'
+  ENV['DOCKER_HOST'] = 'tcp://bld-swarm-01.f4tech.com:2375'
   ENV['DHOST_1'] = dhost_1
   ENV['DHOST_2'] = dhost_2
   compose_args = "-p #{COMPOSE_PREFIX}_#{random_string} -f veth.yml"
 
-  cmd = "docker-compose #{compose_args} up --force-recreate 2>&1"
+  cmd = "docker-compose #{compose_args} up 2>&1"
   puts "Running docker command: #{"DHOST_1=#{dhost_1} DHOST_2=#{dhost_2} #{cmd}".yellow}"
   compose_out = `#{cmd}`
   if compose_out.match('could not add veth')
@@ -67,10 +67,15 @@ def test_veth(dhost_n_1, dhost_n_2)
     end
 
     if match[0] != dhost_1 || match[1] != dhost_2
-      puts "Incorrect parsing!".red
+      puts "Veth error: incorrect parsing!".red
       if image_line.strip.length == 0
         puts "Didn't match any images from:".red
         puts `docker ps -a | grep #{COMPOSE_PREFIX}`
+        puts "with cmd: #{"#{image_match_cmd}".yellow}".red
+        exit 1
+      else
+        puts "Didn't match any images from:".red
+        puts image_line
         puts "with cmd: #{"#{image_match_cmd}".yellow}".red
         exit 1
       end
@@ -84,6 +89,8 @@ def test_veth(dhost_n_1, dhost_n_2)
     puts "getsockopt: no route to host".red
   elsif compose_out.match(/ValueError: No JSON object could be decoded/)
     puts "ValueError: No JSON object could be decoded".red
+  elsif compose_out.match(/Unable to find a node that satisfies the following conditions/)
+    puts "Unable to find a node that satisfies the following conditions for host #{compose_out.match(/\[([^\]+])\]/)[1]}".red
   elsif $? != 0
     puts "Got some error.  Compose output:"
     puts compose_out
